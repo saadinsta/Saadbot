@@ -1,48 +1,48 @@
+import openai
+import streamlit as st
 
+# استخدم الرمز المخفي الخاص بك للوصول إلى Assistants API
+openai.api_key = "YOUR_API_KEY_HERE"
 
-from langchain.agents import initialize_agent, AgentType
-from langchain.callbacks import StreamlitCallbackHandler
-from langchain.chat_models import ChatOpenAI
-from langchain.tools import DuckDuckGoSearchRun
+# انشاء نموذج ذاتي يتعامل مع ملفات ويعتمد عليها في الرد مع ChatGPT
+assistant = openai.Assistant(
+    name="My Chat Assistant",
+    instructions="You are a personal math tutor. Write and run code to answer math questions.",
+    tools=[{"type": "code_interpreter"}],
+    model="gpt-4-1106-preview"
+)
 
-with st.sidebar:
-    openai_api_key = st.text_input("OpenAI API Key", key="langchain_search_api_key_openai", type="password")
-    "[Get an OpenAI API key](https://platform.openai.com/account/api-keys)"
-    "[View the source code](https://github.com/streamlit/llm-examples/blob/main/pages/2_Chat_with_search.py)"
-    "[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/streamlit/llm-examples?quickstart=1)"
+# انشاء نقطة تحديد للمحادثة بين المستخدم والبوت
+thread = openai.Thread.create()
 
-st.title("🔎 LangChain - Chat with search")
+# اضافة رسالة جديدة إلى النقطة بواسطة المستخدم والتحقيق من أي ملفات يجب عليها نموذج البوت للتعامل معها
+message = openai.Thread.Message.create(
+    thread_id=thread.id,
+    role="user",
+    content="I need to solve the equation `3x + 11 = 14`. Can you help me?"
+)
 
-"""
-In this example, we're using `StreamlitCallbackHandler` to display the thoughts and actions of an agent in an interactive Streamlit app.
-Try more LangChain 🤝 Streamlit Agent examples at [github.com/langchain-ai/streamlit-agent](https://github.com/langchain-ai/streamlit-agent).
-"""
+# تشغيل نموذج البوت للتحقيق من الردود على الرسائل المضافة إلى النقطة
+run = openai.Thread.Run.create(
+    thread_id=thread.id,
+    assistant_id=assistant.id,
+    instructions="Please address the user as Jane Doe. The user has a premium account."
+)
 
-if "messages" not in st.session_state:
-    st.session_state["messages"] = [
-        {"role": "assistant", "content": "Hi, I'm a chatbot who can search the web. How can I help you?"}
-    ]
+# تحقيق من الحالة المتقدمة للتشغيل للبوت للتحقيق من أي ملفات يجب عليها نموذج البوت للتعامل معها
+run = openai.Thread.Run.retrieve(
+    thread_id=thread.id,
+    run_id=run.id
+)
 
-for msg in st.session_state.messages:
-    if msg["role"] == "assistant":
-        st.text(msg["content"])
-    elif msg["role"] == "user":
-        st.text(f"User: {msg['content']}")
+# عرض الردود المحاولة لنموذج البوت على المستخدم بواسطة الرسائل المضافة إلى النقطة
+messages = openai.Thread.Message.list(
+    thread_id=thread.id
+)
 
-prompt = st.chat_input(placeholder="Who won the Women's U.S. Open in 2018?")
-if prompt is not None:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.text(f"User: {prompt}")
+# والتحقيق من أي ملفات يجب عليها نموذج البوت للتعامل معها
+run.steps
 
-    if not openai_api_key:
-        st.info("Please add your OpenAI API key to continue.")
-        st.stop()
-
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, streaming=True)
-    search = DuckDuckGoSearchRun(name="Search")
-    search_agent = initialize_agent([search], llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, handle_parsing_errors=True)
-    
-    response = search_agent.run(st.session_state.messages, callbacks=[StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)])
-    
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    st.text(f"Assistant: {response}")
+# عرض الرسائل على واجهة Streamlit
+st.write("User message:", message.content)
+st.write("Assistant response:", run.steps[-1].content)
